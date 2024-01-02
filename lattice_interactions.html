@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.0/es5/tex-mml-chtml.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ising-Hamiltonian Perspective on Magnetism</title>
+    <link rel="icon" href="https://static-00.iconduck.com/assets.00/magnet-emoji-2048x2031-eittadui.png" type="image/png">
+      <style>
+    .content {
+        display: flex;
+        justify-content: space-around;
+        align-items: flex-start;
+    }
+
+    #graph {
+        width: 60%;  /* Adjust as needed */
+        height: 600px; /* Adjust as needed */
+    }
+
+    .description {
+        width: 35%; /* Adjust as needed */
+        /* Additional styling for the description text */
+        padding: 20px;
+        box-sizing: border-box;
+    }
+</style>
+</head>
+<body>
+	<div class="content">
+		<div id="graph"></div>
+		<div class="description">
+			<h1> Ising-Hamiltonian Perspective on Magnetism </h1>
+			<h2> Simple Lattice </h2>
+			<p> Such a lattice is essentially an edge consisting of only two neighbouring particles. Each particle’s spin can take a value of ±1, corresponding to up and down or north and south. The total energy, called the Hamiltonian, of the two particles together is defined as the following: <p>
+			\[ H = -s_1s_2\]
+			\[with s_1, s_2 \in {\pm 1}\]
+			<p> The negative sign in the above expression indicates to achieve the lowest energy possible in the system (which, in this case, is the two-node lattice), the two particles must have identical spin values. Otherwise, when the particles \(s_1\) and \(s_2\) are spinning oppositely, the system’s energy is increased. <p>
+			<h2> General 2D Lattice </h2>
+			<p> For a more complex 2D lattice consisting of more than two particles, the Hamiltonian, which, as aforementioned, is the energy of the system, is defined as: </p>
+			\[ H = -\Sigma s_is_j\]
+			<h2> Two Magnets </h2>
+			<p> In a system comprised of two magnets, represented by two lattices, as seen on the left, the Hamiltonian is equal to: </p>
+			\[ H_{total} = H_1 + H_2 + H_{interaction} \]
+			<p> In this expression, \(H_1\) is the Hamiltonian of the first lattice, \(H_2\) is the Hamiltonian of the second lattice, and \(H_{interaction}\) is the energy of the interaction between the particles on the boundaries of the magnets \(H_1\) and \(H_2\). Mathematically, the Hamiltonian \(H_{interaction}\) is defined as: </p>
+			\[ H_{interaction} = -\Sigma s_it_j\]
+			<p> In this expression, \(s_i\) is a spin on the boundary of the first lattice and \(t_j\) is a spin on the boundary of the second lattice. <br> Thus, explicitly, we get this expression for \(H_{total}\) :			
+			\[ H_{total} = -\Sigma s_is_j -\Sigma t_it_j - \Sigma_{s_i \in \mathrm{d} M_1, t_j \in \mathrm{d} M_2} s_it_j \]
+		</div>
+	</div>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+const width = 800, height = 600;
+const svg = d3.select("#graph").append("svg")
+              .attr("width", width)
+              .attr("height", height);
+
+        function createLattice(rows, cols, offsetX, offsetY, latticeId) {
+    let nodes = [], links = [];
+
+    // Create nodes
+    for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+            nodes.push({ 
+                id: `node-${offsetX}-${offsetY}-${i}-${j}`, 
+                x: offsetX + j * 50, 
+                y: offsetY + i * 50,
+                color: (i + j) % 2 === 0 ? 'blue' : 'red', // Alternate colors
+		lattice: latticeId
+            });
+        }
+    }
+
+    // Create links (edges)
+    nodes.forEach((node, idx) => {
+        // Connect to right neighbor
+        if ((idx + 1) % cols !== 0) {
+            links.push({ source: node, target: nodes[idx + 1] });
+        }
+        // Connect to bottom neighbor
+        if (idx < cols * (rows - 1)) {
+            links.push({ source: node, target: nodes[idx + cols] });
+        }
+    });
+
+    return { nodes, links };
+}
+
+
+const lattice1Data = createLattice(3, 3, 100, 100, 'lattice1');
+const lattice2Data = createLattice(4, 4, 400, 100, 'lattice2');
+
+const nodes = [...lattice1Data.nodes, ...lattice2Data.nodes];
+const links = [...lattice1Data.links, ...lattice2Data.links];
+
+// Initialize the force simulation with nodes and links
+const simulation = d3.forceSimulation(nodes)
+    .force("link", d3.forceLink(links).id(d => d.id).strength(0.1)) // Adjusted link strength
+    .force("charge", d3.forceManyBody().strength(-30)) // Adjusted charge strength
+    .force("center", d3.forceCenter(width / 2, height / 2));
+
+// Custom forces for attraction and repulsion
+simulation.force("custom", function(alpha) {
+    nodes.forEach(function(node) {
+        nodes.forEach(function(otherNode) {
+            if (node === otherNode) return; // Skip self
+
+            const isDifferentLattice = (lattice1Data.nodes.includes(node) && lattice2Data.nodes.includes(otherNode)) ||
+                                       (lattice2Data.nodes.includes(node) && lattice1Data.nodes.includes(otherNode));
+
+            if (isDifferentLattice) {
+                const dx = otherNode.x - node.x;
+                const dy = otherNode.y - node.y;
+                const distance = Math.sqrt(dx * dx + dy * dy) || 1; // Prevent division by zero
+                const forceMagnitude = (node.color === otherNode.color) ? 0.05 : -0.05; // Reduced force magnitude
+
+                node.vx += (dx / distance) * forceMagnitude * alpha;
+                node.vy += (dy / distance) * forceMagnitude * alpha;
+            }
+        });
+    });
+});
+
+// Render links
+const link = svg.selectAll(".link")
+    .data(links)
+    .enter().append("line")
+    .attr("class", "link")
+    .attr("stroke", "#999")
+    .attr("stroke-opacity", 0.6);
+
+// Render nodes and apply drag functionality
+const node = svg.selectAll(".node")
+    .data(nodes)
+    .enter().append("circle")
+    .attr("class", "node")
+    .attr("r", 5)
+    .attr("fill", d => d.color)
+    .call(drag(simulation)); // Apply drag functionality here
+
+
+// Update positions on each simulation 'tick'
+simulation.on("tick", () => {
+    // Constrain nodes within the bounds
+    nodes.forEach(d => {
+        d.x = Math.max(5, Math.min(width - 5, d.x));
+        d.y = Math.max(5, Math.min(height - 5, d.y));
+    });
+
+    link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+    node
+        .attr("cx", d => d.x)
+        .attr("cy", d => d.y);
+});
+
+
+function drag(simulation) {
+    function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+
+    function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        
+        // Define a proximity threshold
+        const proximityThreshold = 30;
+        let fixPosition = false;
+
+        // Check for nodes of opposite color within the threshold
+        nodes.forEach(otherNode => {
+            if (d.id !== otherNode.id) {
+                const dx = otherNode.x - d.x;
+                const dy = otherNode.y - d.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < proximityThreshold && d.color !== otherNode.color && d.lattice !== otherNode.lattice) {
+                    fixPosition = true;
+
+		    otherNode.fx = otherNode.x;
+                    otherNode.fy = otherNode.y;
+                }
+            }
+        });
+
+        // Fix the position if an opposite color node is nearby
+        if (!fixPosition) {
+            d.fx = null;
+            d.fy = null;
+        }
+    }
+
+    return d3.drag()
+        .on("start", dragstarted)
+        .on("drag", dragged)
+        .on("end", dragended);
+}
+
+
+    </script>
+</body>
+</html>
